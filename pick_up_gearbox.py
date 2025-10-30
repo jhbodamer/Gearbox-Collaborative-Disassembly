@@ -14,6 +14,7 @@ from Gocator import (
     GoSdk, kApi, RecieveData, get_measurement_decision,
     kObject_Destroy, kIpAddress, GoDataSet, GoDataMsg, kNULL
 )
+from epick_gripper2 import (start_suction, stop_suction)
 
 # ---------- USER CONFIG ----------
 UR_IP = "192.168.1.5"
@@ -576,6 +577,7 @@ def main():
                                     print(f"[ERROR] MoveJ failed: {e}")
                                     main.sequence_start_time = None
                         
+                        
                         # STEP 3: Execute moveL to lower height immediately after moveJ completes
                         if hasattr(main, 'step2_complete') and not hasattr(main, 'step3_complete'):
                             print(f"\n=== STEP 3: EXECUTING FINAL MOVEL (LOWER HEIGHT) ===")
@@ -595,28 +597,108 @@ def main():
                                 print("[OK] Final MoveL command sent successfully")
                                 time.sleep(1)
                                 print("1234324123")
-                                trigger_scanner()
                                 current_pose_post_scan = get_tcp_pose6(rtde)
-                                target_pose_step4 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
-                                rtde_control.moveL(target_pose_step4, 0.1, 0.1)
+                                # target_pose_step4 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
+                                # rtde_control.moveL(target_pose_step4, 0.1, 0.1)
                                 main.step3_complete = True
-                                print("[INFO] Scan Complete")
-                                
-                                # Reset sequence for next run
-                                main.sequence_start_time = None
-                                main.step1_complete = None
-                                main.step2_complete = None
-                                main.step3_complete = None
-                                main.step2_delay_start = None
-                                main.step1_iteration = None
-                                main.target_Xb = None
-                                main.target_Yb = None
-                                main.step1_moving = None
-                                main.step1_move_start_time = None
                                 
                             except Exception as e:
                                 print(f"[ERROR] Final MoveL failed: {e}")
                                 main.sequence_start_time = None
+                                
+                        # STEP 4:  Execute offset to account for gripper
+                        if hasattr(main, 'step3_complete') and not hasattr(main, 'step4_complete'):
+                            print(f"\n=== STEP 4: EXECUTING OFFSET FOR GRIPPER ===")
+                            
+                            
+                            try:
+                                # Calculate offset for gripper based on tool's current orientation
+                                offset_x = 0
+                                offset_y = -0.048
+                                current_pose = get_tcp_pose6(rtde)
+                                target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                print(f"Target pose (With offset)(z=260mm): [{target_pose_step4[0]:.3f}, {target_pose_step4[1]:.3f}, {target_pose_step4[2]:.3f}, {target_pose_step4[3]:.3f}, {target_pose_step4[4]:.3f}, {target_pose_step4[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step4, 0.1, 0.1)
+                                print("[OK] Offset move command sent successfully")
+                                time.sleep(1)
+                                
+                                main.step4_complete = True
+                                
+                            except Exception as e:
+                                print(f"[ERROR] Offset Move Failed: {e}")
+                                main.sequence_start_time = None     
+                                
+                                
+                                
+                        # STEP 5:  Move down into pick pose
+                        if hasattr(main, 'step4_complete') and not hasattr(main, 'step5_complete'):
+                            print(f"\n=== STEP 5: MOVING TO PICK POSE ===")
+                            
+                            
+                            try:
+                                # Move to Z=112mm (gripper pressed against box surface)
+                                current_pose = get_tcp_pose6(rtde)
+                                target_pose_step5 = [current_pose[0], current_pose[1], 0.112, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                print("[OK] Pick move command sent successfully")
+                                time.sleep(1)
+                                
+                                main.step5_complete = True
+                                
+                            except Exception as e:
+                                print(f"[ERROR] Offset Move Failed: {e}")
+                                main.sequence_start_time = None    
+                                
+                                
+                        # STEP 6:  Activate Suction
+                        if hasattr(main, 'step5_complete') and not hasattr(main, 'step6_complete'):
+                            print(f"\n=== STEP 6: ACTIVATING GRIPPER ===")   
+                            
+                            try:
+                                # Activate Gripper
+                                start_suction()
+                                time.sleep(1)
+                                main.step6_complete = True
+                                
+                            except Exception as e:
+                                print(f"[ERROR] Suction Start Failed: {e}")
+                                main.sequence_start_time = None
+                                
+                        # # STEP 7:  Move to human disassembly pose
+                        # if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
+                            # print(f"\n=== STEP 6: ACTIVATING GRIPPER ===")   
+                            
+                            # try:
+                                # # Activate Gripper
+                                # start_suction()
+                                # time.sleep(1)
+                                # main.step6_complete = True
+                                
+                            # except Exception as e:
+                                # print(f"[ERROR] Suction Start Failed: {e}")
+                                # main.sequence_start_time = None
+                                # target_pose
+                                # # Reset sequence for next run
+                                # main.sequence_start_time = None
+                                # main.step1_completMoveJe = None
+                                # main.step2_complete = None
+                                # main.step3_complete = None
+                                # main.step4_complete = None
+                                # main.step5_complete = None
+                                # main.step6_complete = None
+                                # main.step2_delay_start = None
+                                # main.step1_iteration = None
+                                # main.target_Xb = None
+                                # main.target_Yb = None
+                                # main.step1_moving = None
+                                # main.step1_move_start_time = None
+                                
+                            
+                
+                
                 
                 # Display current sequence status
                 if hasattr(main, 'sequence_start_time') and main.sequence_start_time is not None:
