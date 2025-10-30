@@ -561,7 +561,7 @@ def main():
                                         current_joints[1],  # current theta2
                                         current_joints[2],  # current theta3
                                         current_joints[3],  # current theta4
-                                        np.pi/2,          # theta5 = -90 degrees
+                                        np.pi/2,          # theta5 = 90 degrees
                                         current_joints[5] + fresh_angle  # current theta6 + fresh angle
                                     ]
                                     
@@ -667,18 +667,29 @@ def main():
                                 print(f"[ERROR] Suction Start Failed: {e}")
                                 main.sequence_start_time = None
                                 
-                        # # STEP 7:  Move to human disassembly pose
-                        # if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
-                            # print(f"\n=== STEP 6: ACTIVATING GRIPPER ===")   
+                        # STEP 7:  Move to human disassembly pose
+                        if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
+                            print(f"\n=== STEP 7: MOVING TO HUMAN DISASSEMBLY POSE ===")   
                             
-                            # try:
-                                # # Activate Gripper
-                                # start_suction()
-                                # time.sleep(1)
-                                # main.step6_complete = True
+                            try:
+                                # Move to pose
+                                current_pose = get_tcp_pose6(rtde)
+                                target_pose_step7 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
+                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                print(f"Target pose: [{target_pose_step7[0]:.3f}, {target_pose_step7[1]:.3f}, {target_pose_step7[2]:.3f}, {target_pose_step7[3]:.3f}, {target_pose_step7[4]:.3f}, {target_pose_step7[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step7, 0.1, 0.1)
                                 
-                            # except Exception as e:
-                                # print(f"[ERROR] Suction Start Failed: {e}")
+                                target_pose_step7 = [current_pose[0], current_pose[1], 0.260, current_pose[3]-3.14/2, current_pose[4], current_pose[5]]  # rotate
+                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                print(f"Target pose: [{target_pose_step7[0]:.3f}, {target_pose_step7[1]:.3f}, {target_pose_step7[2]:.3f}, {target_pose_step7[3]:.3f}, {target_pose_step7[4]:.3f}, {target_pose_step7[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step7, 0.1, 0.1)
+                                print("[OK] Move command sent successfully")
+                                time.sleep(1)
+                                main.step7_complete = True
+                            except Exception as e:
+                                print(f"[ERROR] Human Pose Move Failed: {e}")
+                                main.sequence_start_time = None
+                        
                                 # main.sequence_start_time = None
                                 # target_pose
                                 # # Reset sequence for next run
@@ -840,6 +851,7 @@ def main():
     
     finally:
         pipeline.stop()
+        stop_suction()
         cv2.destroyAllWindows()
         print("Stopped RealSense.")
 
