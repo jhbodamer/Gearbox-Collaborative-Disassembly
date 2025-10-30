@@ -298,8 +298,11 @@ def main():
 
     # Setup RealSense
     pipeline = rs.pipeline()
+    align = rs.align(rs.stream.color)
     config = rs.config()
     config.enable_stream(rs.stream.color, STREAM_W, STREAM_H, rs.format.bgr8, FPS)
+    config.enable_stream(rs.stream.depth, STREAM_W, STREAM_H, rs.format.z16, FPS)
+
     
     print("[INFO] Starting RealSense stream...")
     pipeline.start(config)
@@ -314,6 +317,8 @@ def main():
     fy = float(intrinsics.fy)
     cx = float(intrinsics.ppx)
     cy = float(intrinsics.ppy)
+    
+    
     
     # Build camera matrix K
     K = np.array([[fx, 0.0, cx],
@@ -335,10 +340,15 @@ def main():
     try:
         while True:
             frames = pipeline.wait_for_frames()
+
+            
             color = frames.get_color_frame()
+            
             if not color:
                 continue
                 
+            
+    
             img = np.asanyarray(color.get_data())
             ui = img.copy()
             
@@ -584,8 +594,8 @@ def main():
                             
                             try:
                                 # Get current TCP position and only change Z height to 260mm
-                                offset_x = -0.025
-                                offset_y = 0.015
+                                offset_x = 0.0
+                                offset_y = 0.0
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step3 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 260mm
                                 
@@ -596,15 +606,17 @@ def main():
                                 rtde_control.moveL(target_pose_step3, 0.1, 0.1)
                                 print("[OK] Final MoveL command sent successfully")
                                 time.sleep(1)
-                                print("1234324123")
                                 current_pose_post_scan = get_tcp_pose6(rtde)
                                 # target_pose_step4 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
                                 # rtde_control.moveL(target_pose_step4, 0.1, 0.1)
                                 main.step3_complete = True
+                            
+                               
                                 
                             except Exception as e:
                                 print(f"[ERROR] Final MoveL failed: {e}")
                                 main.sequence_start_time = None
+                               
                                 
                         # STEP 4:  Execute offset to account for gripper
                         if hasattr(main, 'step3_complete') and not hasattr(main, 'step4_complete'):
@@ -612,9 +624,25 @@ def main():
                             
                             
                             try:
+                                # Before doing offset get depth reading
+                                frames = pipeline.wait_for_frames()
+                                aligned_frames = align.process(frames)
+                                depth_frame = aligned_frames.get_depth_frame()
+                                
+                                # Convert depth frame to numpy array
+                                depth_image = np.asanyarray(depth_frame.get_data())
+                                
+                                # Get depth scale and center pixel
+                                depth_scale = depth_frame.get_units()  # meters per depth unit
+                                h, w = depth_image.shape
+                                center_x, center_y = w // 2, h // 2 
+                                 # Read depth value at the center
+                                main.depth_value = depth_image[center_y, center_x] * depth_scale
+                                print("Depth value in meters: ", main.depth_value)
+                                
                                 # Calculate offset for gripper based on tool's current orientation
-                                offset_x = 0
-                                offset_y = -0.048
+                                offset_x = -0.065
+                                offset_y = -0.019
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
@@ -624,7 +652,6 @@ def main():
                                 time.sleep(1)
                                 
                                 main.step4_complete = True
-                                
                             except Exception as e:
                                 print(f"[ERROR] Offset Move Failed: {e}")
                                 main.sequence_start_time = None     
@@ -637,9 +664,11 @@ def main():
                             
                             
                             try:
-                                # Move to Z=112mm (gripper pressed against box surface)
+                                
+                                # Move to depth offset (gripper pressed against box surface)
                                 current_pose = get_tcp_pose6(rtde)
-                                target_pose_step5 = [current_pose[0], current_pose[1], 0.112, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                z_move = -main.depth_value + 0.055
+                                target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                 print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
                                 rtde_control.moveL(target_pose_step5, 0.1, 0.1)
@@ -672,40 +701,53 @@ def main():
                             print(f"\n=== STEP 7: MOVING TO HUMAN DISASSEMBLY POSE ===")   
                             
                             try:
-                                # Move to pose
+                                # Move to up to Z=260mm
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step7 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                 print(f"Target pose: [{target_pose_step7[0]:.3f}, {target_pose_step7[1]:.3f}, {target_pose_step7[2]:.3f}, {target_pose_step7[3]:.3f}, {target_pose_step7[4]:.3f}, {target_pose_step7[5]:.3f}]")
                                 rtde_control.moveL(target_pose_step7, 0.1, 0.1)
+                                time.sleep(2)
                                 
-                                target_pose_step7 = [current_pose[0], current_pose[1], 0.260, current_pose[3]-3.14/2, current_pose[4], current_pose[5]]  # rotate
+                                # Move to put object down
+                                current_pose = get_tcp_pose6(rtde)
+                                z_move = -main.depth_value + 0.065
+                                target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose: [{target_pose_step7[0]:.3f}, {target_pose_step7[1]:.3f}, {target_pose_step7[2]:.3f}, {target_pose_step7[3]:.3f}, {target_pose_step7[4]:.3f}, {target_pose_step7[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step7, 0.1, 0.1)
-                                print("[OK] Move command sent successfully")
+                                print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
                                 time.sleep(1)
+                                stop_suction()
+                                
                                 main.step7_complete = True
+                                
+                                
+                                
+                                
+                                main.sequence_start_time = None
+                                target_pose
+                                # Reset sequence for next run
+                                main.sequence_start_time = None
+                                main.step1_completMoveJe = None
+                                main.step2_complete = None
+                                main.step3_complete = None
+                                main.step4_complete = None
+                                main.step5_complete = None
+                                main.step6_complete = None
+                                main.step7_complete = None
+                                main.step2_delay_start = None
+                                main.step1_iteration = None
+                                main.target_Xb = None
+                                main.target_Yb = None
+                                main.step1_moving = None
+                                main.step1_move_start_time = None
+                                main.depth_value = None
+                                main.depth_value = None
                             except Exception as e:
                                 print(f"[ERROR] Human Pose Move Failed: {e}")
                                 main.sequence_start_time = None
                         
-                                # main.sequence_start_time = None
-                                # target_pose
-                                # # Reset sequence for next run
-                                # main.sequence_start_time = None
-                                # main.step1_completMoveJe = None
-                                # main.step2_complete = None
-                                # main.step3_complete = None
-                                # main.step4_complete = None
-                                # main.step5_complete = None
-                                # main.step6_complete = None
-                                # main.step2_delay_start = None
-                                # main.step1_iteration = None
-                                # main.target_Xb = None
-                                # main.target_Yb = None
-                                # main.step1_moving = None
-                                # main.step1_move_start_time = None
+                                
                                 
                             
                 
