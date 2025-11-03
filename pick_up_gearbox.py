@@ -355,8 +355,11 @@ def main():
             # Convert image to grayscale
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
-            # Convert image to binary using Otsu's method
-            _, bw = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+            # Convert image to binary using Otsu's method (Sensitive to shadows)
+            #_, bw = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+            
+            # Convert image to binary but set our own threshold of 70 (Less sensitive to shadows)
+            _, bw = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
             
             # Find all the contours in the thresholded image
             contours, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -841,6 +844,7 @@ def main():
             status_text = f"Detected Objects: {len(detected_objects)}   FLIP_RAY={FLIP_RAY}"
             cv2.putText(ui, status_text, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
+
             # Show the processed image
             cv2.imshow('Object Detection with PCA Orientation', ui)
             
@@ -890,6 +894,7 @@ def main():
                 print("  5. Wait 2 seconds")
                 print("  6. MoveL to lower height (Z=260mm)")
                 print("================================\n")
+
     
     finally:
         pipeline.stop()
