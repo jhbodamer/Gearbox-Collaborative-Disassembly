@@ -2,7 +2,7 @@
 import numpy as np
 import cv2
 import time
-from math import atan2, cos, sin, sqrt, pi
+from math import atan2, cos, sin, sqrt, pi, radians
 from pathlib import Path
 import pyrealsense2 as rs
 import GoSdk_MsgHandler
@@ -10,12 +10,13 @@ import os
 import traceback
 import ctypes
 from ctypes import byref
+from scipy.spatial.transform import Rotation as R
 from Gocator import (
     GoSdk, kApi, RecieveData, get_measurement_decision,
     kObject_Destroy, kIpAddress, GoDataSet, GoDataMsg, kNULL
 )
 from epick_gripper2 import (start_suction, stop_suction)
-
+# from activate_gripper import pulse_gripper
 # ---------- USER CONFIG ----------
 UR_IP = "192.168.1.5"
 T_TCP_CAM_PATH = Path("T_tcp_cam.npy")
@@ -98,7 +99,6 @@ def trigger_scanner():
         print(f"[ERROR] Scanner error: {e}")
         traceback.print_exc()
         decision = -1
-
     return decision
 
 def get_tcp_pose6(rtde_iface):
@@ -270,6 +270,8 @@ def intersect_Z0(u, v, K, D, T_base_tcp, T_tcp_cam, img=None, orientation_debug=
     return None, None, None, info
 
 def main():
+    #pulse_gripper() # make sure gripper is active
+    
     """
     Main function that automatically detects objects and finds their orientation using minAreaRect.
     Based on the OpenCV example code provided by the user.
@@ -359,7 +361,7 @@ def main():
             #_, bw = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
             
             # Convert image to binary but set our own threshold of 70 (Less sensitive to shadows)
-            _, bw = cv2.threshold(gray, 70, 255, cv2.THRESH_BINARY)
+            _, bw = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
             
             # Find all the contours in the thresholded image
             contours, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -387,7 +389,7 @@ def main():
             
             # Process detected objects to get their poses (similar to pixel_t_pose.py)
             if detected_objects:
-                print(f"\n=== PROCESSING {len(detected_objects)} DETECTED OBJECTS ===")
+                #print(f"\n=== PROCESSING {len(detected_objects)} DETECTED OBJECTS ===")
                 for i, (contour, area, angle, center_point) in enumerate(detected_objects):
                     # Get robot pose and compute intersection using center point
                     pose6 = get_tcp_pose6(rtde)
@@ -400,9 +402,9 @@ def main():
                     Xb, Yb, _, info = intersect_Z0(center_x, center_y, K, D, T_base_tcp, T_tcp_cam, ui, True, True)
                     
                     if Xb is not None:
-                        print(f"Object {i+1}: Center pixel ({center_x},{center_y}) -> Base XY: ({Xb*1000:.1f} mm, {Yb*1000:.1f} mm)")
-                        print(f"  Orientation: {angle:.3f} rad ({np.degrees(angle):.1f}°)")
-                        print(f"  [camZ={info['camZ']:.3f}, rayZ={info['rayZ']:.3f}, flipped={info['flipped']}]")
+                        # print(f"Object {i+1}: Center pixel ({center_x},{center_y}) -> Base XY: ({Xb*1000:.1f} mm, {Yb*1000:.1f} mm)")
+                        # print(f"  Orientation: {angle:.3f} rad ({np.degrees(angle):.1f}°)")
+                        # print(f"  [camZ={info['camZ']:.3f}, rayZ={info['rayZ']:.3f}, flipped={info['flipped']}]")
                         
                         # Calculate aligned TCP pose for top-down camera
                         current_pose = get_tcp_pose6(rtde)
@@ -418,10 +420,10 @@ def main():
                         
                         # Get current joint angles
                         current_joints = rtde.getActualQ()
-                        print(f"  Current Joints: [{np.degrees(current_joints[0]):.1f}, {np.degrees(current_joints[1]):.1f}, {np.degrees(current_joints[2]):.1f}, {np.degrees(current_joints[3]):.1f}, {np.degrees(current_joints[4]):.1f}, {np.degrees(current_joints[5]):.1f}] deg")
-                        print(f"  Current TCP: [{current_x:.3f}, {current_y:.3f}, {current_z:.3f}, {current_rx:.3f}, {current_ry:.3f}, {current_rz:.3f}]")
-                        print(f"  Aligned TCP: [{Xb:.3f}, {Yb:.3f}, {current_z:.3f}, {current_rx:.3f}, {current_ry:.3f}, {aligned_rz:.3f}]")
-                        print(f"  TCP will align with object orientation: {np.degrees(aligned_rz):.1f}°")
+                        # print(f"  Current Joints: [{np.degrees(current_joints[0]):.1f}, {np.degrees(current_joints[1]):.1f}, {np.degrees(current_joints[2]):.1f}, {np.degrees(current_joints[3]):.1f}, {np.degrees(current_joints[4]):.1f}, {np.degrees(current_joints[5]):.1f}] deg")
+                        # print(f"  Current TCP: [{current_x:.3f}, {current_y:.3f}, {current_z:.3f}, {current_rx:.3f}, {current_ry:.3f}, {current_rz:.3f}]")
+                        # print(f"  Aligned TCP: [{Xb:.3f}, {Yb:.3f}, {current_z:.3f}, {current_rx:.3f}, {current_ry:.3f}, {aligned_rz:.3f}]")
+                        # print(f"  TCP will align with object orientation: {np.degrees(aligned_rz):.1f}°")
                         
                         # Draw coordinate info on image
                         coord_text = f"({Xb*1000:.0f},{Yb*1000:.1f})mm"
@@ -434,8 +436,8 @@ def main():
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
                     else:
                         print(f"Object {i+1}: Center pixel ({center_x},{center_y}) -> No intersection with Z=0 plane")
-                print("================================\n")
-            
+                #print("================================\n")
+
             # Automated movement sequence logic
             if detected_objects and rtde_control is not None:
                 # Start automated sequence after 2 seconds
@@ -643,9 +645,16 @@ def main():
                                 main.depth_value = depth_image[center_y, center_x] * depth_scale
                                 print("Depth value in meters: ", main.depth_value)
                                 
+                                # Convert to pitch roll yaw
+                                axis_angle = np.array(current_pose[3:])
+                                # Convert axis-angle to rotation matrix
+                                r = R.from_rotvec(axis_angle)
+                                rotation_matrix = r.as_matrix()
+                                euler = r.as_euler('xyz', degrees=True)
+                                
                                 # Calculate offset for gripper based on tool's current orientation
-                                offset_x = -0.065
-                                offset_y = -0.019
+                                offset_x = -0.055*cos(radians(euler[2])+pi/4)
+                                offset_y = -0.055*sin(radians(euler[2])+pi/4)
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
@@ -670,7 +679,7 @@ def main():
                                 
                                 # Move to depth offset (gripper pressed against box surface)
                                 current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.055
+                                z_move = -main.depth_value + 0.08
                                 target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                 print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
@@ -691,7 +700,7 @@ def main():
                             
                             try:
                                 # Activate Gripper
-                                start_suction()
+                                #start_suction()
                                 time.sleep(1)
                                 main.step6_complete = True
                                 
