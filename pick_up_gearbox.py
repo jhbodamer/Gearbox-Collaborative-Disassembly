@@ -577,7 +577,7 @@ def main():
                                         current_joints[1],  # current theta2
                                         current_joints[2],  # current theta3
                                         current_joints[3],  # current theta4
-                                        np.pi/2,          # theta5 = 90 degrees
+                                        -np.pi/2,          # theta5 = 90 degrees
                                         current_joints[5] + fresh_angle  # current theta6 + fresh angle
                                     ]
                                     
