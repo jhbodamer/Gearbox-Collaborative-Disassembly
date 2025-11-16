@@ -453,7 +453,7 @@ def main():
                     time_elapsed = current_time - main.sequence_start_time
                     
                     # Only proceed if we haven't completed the sequence yet
-                    if not hasattr(main, 'step7_complete') or main.step7_complete is None:
+                    if not hasattr(main, 'step8_complete') or main.step8_complete is None:
                         if time_elapsed >= 2.0:
                             # STEP 1: Execute moveL to target position with iterative refinement
                             if not hasattr(main, 'step1_complete'):
@@ -544,9 +544,9 @@ def main():
                                     print(f"[ERROR] No objects detected for iteration {main.step1_iteration}")
                                     main.sequence_start_time = None
                                     
-                        # STEP 1_2: Execute offset to center joint 5 above object
-                        if hasattr(main, 'step1_complete') and not hasattr(main, 'step1_2_complete'):
-                            print(f"\n=== STEP 1_2: CENTERING JOINT 5 ABOVE OBJECT ===")
+                        # STEP 2: Execute offset to center joint 5 above object
+                        if hasattr(main, 'step1_complete') and not hasattr(main, 'step2_complete'):
+                            print(f"\n=== STEP 2: CENTERING JOINT 5 ABOVE OBJECT ===")
                             try:
                                 # Store angle to fall back on in case it cant be taken on next step
                                 contour, area, angle, center_point = detected_objects[0]
@@ -581,13 +581,13 @@ def main():
                                 offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
                                 offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
                                 current_pose = get_tcp_pose6(rtde)
-                                target_pose_step1_2 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.330, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                target_pose_step2 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.330, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (With offset)(z=330mm): [{target_pose_step1_2[0]:.3f}, {target_pose_step1_2[1]:.3f}, {target_pose_step1_2[2]:.3f}, {target_pose_step1_2[3]:.3f}, {target_pose_step1_2[4]:.3f}, {target_pose_step1_2[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step1_2, 0.1, 0.1)
+                                print(f"Target pose (With offset)(z=330mm): [{target_pose_step2[0]:.3f}, {target_pose_step2[1]:.3f}, {target_pose_step2[2]:.3f}, {target_pose_step2[3]:.3f}, {target_pose_step2[4]:.3f}, {target_pose_step2[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step2, 0.1, 0.1)
                                 print("[OK] Offset move command sent successfully")
-                                main.step1_2_complete = True
-                                main.step2_delay_start = time.time()
+                                main.step2_complete = True
+                                main.step3_delay_start = time.time()
                                 
                                 
                             except Exception as e:
@@ -596,16 +596,16 @@ def main():
                     
                         
 
-                        # STEP 2: Wait 2 seconds after moveL completes, then execute moveJ
-                        if hasattr(main, 'step1_2_complete') and not hasattr(main, 'step2_complete'):
+                        # STEP 3: Wait 2 seconds after moveL completes, then execute moveJ
+                        if hasattr(main, 'step2_complete') and not hasattr(main, 'step3_complete'):
                             print("debug")
-                            if not hasattr(main, 'step2_delay_start'):
-                                main.step2_delay_start = time.time()
+                            if not hasattr(main, 'step3_delay_start'):
+                                main.step3_delay_start = time.time()
                             
-                            time_since_delay = time.time() - main.step2_delay_start
+                            time_since_delay = time.time() - main.step3_delay_start
                             
                             if time_since_delay >= 2.0:
-                                print(f"\n=== STEP 2: EXECUTING MOVEJ ===")
+                                print(f"\n=== STEP 3: EXECUTING MOVEJ ===")
                                 
                                 # Use the current frame data for accurate angle calculation
                                 if detected_objects:
@@ -640,7 +640,7 @@ def main():
                                     rtde_control.moveJ(target_joints, 0.5, 0.5)
                                     print("[OK] MoveJ command sent successfully")
                                     # iterate moveL again
-                                    main.step2_complete = True
+                                    main.step3_complete = True
                                     print("[INFO] MoveJ complete. Waiting 2 seconds to observe new position...")
                                 except Exception as e:
                                     print(f"[ERROR] MoveJ failed: {e}")
@@ -648,28 +648,28 @@ def main():
                         
                
                         
-                        # STEP 3: Execute moveL to lower height immediately after moveJ completes
-                        if hasattr(main, 'step2_complete') and not hasattr(main, 'step3_complete'):
-                            print(f"\n=== STEP 3: EXECUTING FINAL MOVEL (LOWER HEIGHT) ===")
+                        # STEP 4: Execute moveL to lower height immediately after moveJ completes
+                        if hasattr(main, 'step3_complete') and not hasattr(main, 'step4_complete'):
+                            print(f"\n=== STEP 4: EXECUTING FINAL MOVEL (LOWER HEIGHT) ===")
                             
                             try:
                                 # Get current TCP position and only change Z height to 260mm
                                 offset_x = 0.0
                                 offset_y = 0.0
                                 current_pose = get_tcp_pose6(rtde)
-                                target_pose_step3 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 260mm
+                                target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 260mm
                                 
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (Z=260mm): [{target_pose_step3[0]:.3f}, {target_pose_step3[1]:.3f}, {target_pose_step3[2]:.3f}, {target_pose_step3[3]:.3f}, {target_pose_step3[4]:.3f}, {target_pose_step3[5]:.3f}]")
+                                print(f"Target pose (Z=260mm): [{target_pose_step4[0]:.3f}, {target_pose_step4[1]:.3f}, {target_pose_step4[2]:.3f}, {target_pose_step4[3]:.3f}, {target_pose_step4[4]:.3f}, {target_pose_step4[5]:.3f}]")
                                 
                                 # Execute moveL command to lower height
-                                rtde_control.moveL(target_pose_step3, 0.1, 0.1)
+                                rtde_control.moveL(target_pose_step4, 0.1, 0.1)
                                 print("[OK] Final MoveL command sent successfully")
                                 time.sleep(1)
                                 current_pose_post_scan = get_tcp_pose6(rtde)
-                                # target_pose_step4 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
-                                # rtde_control.moveL(target_pose_step4, 0.1, 0.1)
-                                main.step3_complete = True
+                                # target_pose_step5 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
+                                # rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                main.step4_complete = True
                             
                                
                                 
@@ -678,9 +678,9 @@ def main():
                                 main.sequence_start_time = None
                                
                                 
-                        # STEP 4:  Execute offset to account for gripper
-                        if hasattr(main, 'step3_complete') and not hasattr(main, 'step4_complete'):
-                            print(f"\n=== STEP 4: EXECUTING OFFSET FOR GRIPPER ===")
+                        # STEP 5:  Execute offset to account for gripper
+                        if hasattr(main, 'step4_complete') and not hasattr(main, 'step5_complete'):
+                            print(f"\n=== STEP 5: EXECUTING OFFSET FOR GRIPPER ===")
                             
                             
                             try:
@@ -699,23 +699,23 @@ def main():
                                 offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
                                 offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
                                 current_pose = get_tcp_pose6(rtde)
-                                target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                target_pose_step5 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (With offset)(z=260mm): [{target_pose_step4[0]:.3f}, {target_pose_step4[1]:.3f}, {target_pose_step4[2]:.3f}, {target_pose_step4[3]:.3f}, {target_pose_step4[4]:.3f}, {target_pose_step4[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step4, 0.1, 0.1)
+                                print(f"Target pose (With offset)(z=260mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
                                 print("[OK] Offset move command sent successfully")
                                 time.sleep(1)
                                 
-                                main.step4_complete = True
+                                main.step5_complete = True
                             except Exception as e:
                                 print(f"[ERROR] Offset Move Failed: {e}")
                                 main.sequence_start_time = None     
                                 
                                 
                                 
-                        # STEP 5:  Move down into pick pose
-                        if hasattr(main, 'step4_complete') and not hasattr(main, 'step5_complete'):
-                            print(f"\n=== STEP 5: MOVING TO PICK POSE ===")
+                        # STEP 6:  Move down into pick pose
+                        if hasattr(main, 'step5_complete') and not hasattr(main, 'step6_complete'):
+                            print(f"\n=== STEP 6: MOVING TO PICK POSE ===")
                             
                             
                             try:
@@ -723,62 +723,88 @@ def main():
                                 # Move to depth offset (gripper pressed against box surface)
                                 current_pose = get_tcp_pose6(rtde)
                                 z_move = -main.depth_value + 0.055 + 0.07 # account for difference between camera and suction height as well as difference in height since depth was measured
-                                target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                target_pose_step6 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                print(f"Target pose (z=112mm): [{target_pose_step6[0]:.3f}, {target_pose_step6[1]:.3f}, {target_pose_step6[2]:.3f}, {target_pose_step6[3]:.3f}, {target_pose_step6[4]:.3f}, {target_pose_step6[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step6, 0.1, 0.1)
                                 print("[OK] Pick move command sent successfully")
                                 time.sleep(1)
                                 
-                                main.step5_complete = True
+                                main.step6_complete = True
                                 
                             except Exception as e:
                                 print(f"[ERROR] Offset Move Failed: {e}")
                                 main.sequence_start_time = None    
                                 
                                 
-                        # STEP 6:  Activate Suction
-                        if hasattr(main, 'step5_complete') and not hasattr(main, 'step6_complete'):
-                            print(f"\n=== STEP 6: ACTIVATING GRIPPER ===")   
+                        # STEP 7:  Activate Suction
+                        if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
+                            print(f"\n=== STEP 7: ACTIVATING GRIPPER ===")   
                             
                             try:
                                 # Activate Gripper
                                 start_suction()
                                 time.sleep(1)
-                                main.step6_complete = True
+                                main.step7_complete = True
                                 
                             except Exception as e:
                                 print(f"[ERROR] Suction Start Failed: {e}")
                                 main.sequence_start_time = None
                                 
-                        # STEP 7:  Move to human disassembly pose
-                        if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
-                            print(f"\n=== STEP 7: MOVING TO HUMAN DISASSEMBLY POSE ===")   
+                        # STEP 8:  Move to human disassembly pose
+                        if hasattr(main, 'step7_complete') and not hasattr(main, 'step8_complete'):
+                            print(f"\n=== STEP 8: MOVING TO HUMAN DISASSEMBLY POSE ===")   
                             
                             try:
                                 # Move to up to Z=260mm
                                 current_pose = get_tcp_pose6(rtde)
-                                target_pose_step7 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
+                                target_pose_step8 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose: [{target_pose_step7[0]:.3f}, {target_pose_step7[1]:.3f}, {target_pose_step7[2]:.3f}, {target_pose_step7[3]:.3f}, {target_pose_step7[4]:.3f}, {target_pose_step7[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step7, 0.1, 0.1)
+                                print(f"Target pose: [{target_pose_step8[0]:.3f}, {target_pose_step8[1]:.3f}, {target_pose_step8[2]:.3f}, {target_pose_step8[3]:.3f}, {target_pose_step8[4]:.3f}, {target_pose_step8[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step8, 0.1, 0.1)
                                 time.sleep(2)
+                                main.step8_complete = True
                                 
+                            except Exception as e:
+                                print(f"[ERROR] Human Pose Move Failed: {e}")
+                                main.sequence_start_time = None
+                                
+                                
+                                
+                                
+                        # STEP 9:  Put object down
+                        if hasattr(main, 'step8_complete') and not hasattr(main, 'step9_complete'):
+                            print(f"\n=== STEP 9: PUTTING OBJECT DOWN ===")   
+                            
+                            try:
                                 # Move to put object down
                                 current_pose = get_tcp_pose6(rtde)
                                 z_move = -main.depth_value + 0.065 + 0.07 # drop 1 cm higher than where picked up
-                                target_pose_step8 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                target_pose_step9 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (z=112mm): [{target_pose_step8[0]:.3f}, {target_pose_step8[1]:.3f}, {target_pose_step8[2]:.3f}, {target_pose_step8[3]:.3f}, {target_pose_step8[4]:.3f}, {target_pose_step8[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step8, 0.1, 0.1)
+                                print(f"Target pose (z=112mm): [{target_pose_step9[0]:.3f}, {target_pose_step9[1]:.3f}, {target_pose_step9[2]:.3f}, {target_pose_step9[3]:.3f}, {target_pose_step9[4]:.3f}, {target_pose_step9[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step9, 0.1, 0.1)
                                 time.sleep(1)
                                 stop_suction()
+                                main.step9_complete = True
                                 
-                                main.step7_complete = True
+                
+                            except Exception as e:
+                                print(f"[ERROR] PLACE MANEUVER FAILED: {e}")
+                                main.sequence_start_time = None
+                        
                                 
-                                
-                                
-                                
+                        # STEP 10:  Reset
+                        if hasattr(main, 'step9_complete') and not hasattr(main, 'step10_complete'):
+                            print(f"\n=== STEP 10: RETURN TO OBSERVATION POSE ===")   
+
+
+                            try:   
+                                # Move to observing position
+                                print("[INFO] Moving to OBSERVE_POSE before starting loop...")
+                                rtde_control.moveL(OBSERVE_POSE, 0.25, 0.25)
+                                       
+                                        
                                 main.sequence_start_time = None
                                 # Reset sequence for next run
                                 main.sequence_start_time = None
@@ -789,23 +815,20 @@ def main():
                                 main.step5_complete = None
                                 main.step6_complete = None
                                 main.step7_complete = None
-                                main.step2_delay_start = None
+                                main.step8_complete = None
+                                main.step9_complete = None
+                                main.step10_complete = None
+                                main.step3_delay_start = None
                                 main.step1_iteration = None
                                 main.target_Xb = None
                                 main.target_Yb = None
                                 main.step1_moving = None
                                 main.step1_move_start_time = None
                                 main.depth_value = None
-                                main.depth_value = None
                             except Exception as e:
-                                print(f"[ERROR] Human Pose Move Failed: {e}")
-                                main.sequence_start_time = None
-                        
+                                    print(f"[ERROR] RESET FAILED {e}")
+                                    main.sequence_start_time = None
                                 
-                                
-                            
-                
-                
                 
                 # Display current sequence status
                 if hasattr(main, 'sequence_start_time') and main.sequence_start_time is not None:
@@ -823,18 +846,18 @@ def main():
                                 status_text = f"AUTO: Iteration {main.step1_iteration} - Positioning..."
                         else:
                             status_text = f"AUTO: Observing object... ({2.0 - time_elapsed:.1f}s left)"
-                    elif not hasattr(main, 'step2_complete'):
-                        if hasattr(main, 'step2_delay_start'):
-                            time_since_delay = current_time - main.step2_delay_start
+                    elif not hasattr(main, 'step3_complete'):
+                        if hasattr(main, 'step3_delay_start'):
+                            time_since_delay = current_time - main.step3_delay_start
                             if time_since_delay < 2.0:
                                 status_text = f"AUTO: MoveL complete, observing new position... ({2.0 - time_since_delay:.1f}s left)"
                             else:
                                 status_text = "AUTO: MoveL complete, executing MoveJ..."
                         else:
                             status_text = "AUTO: MoveL complete, preparing for MoveJ..."
-                    elif not hasattr(main, 'step3_complete'):
-                        if hasattr(main, 'step3_delay_start'):
-                            time_since_delay = current_time - main.step3_delay_start
+                    elif not hasattr(main, 'step4_complete'):
+                        if hasattr(main, 'step4_delay_start'):
+                            time_since_delay = current_time - main.step4_delay_start
                             if time_since_delay < 2.0:
                                 status_text = f"AUTO: MoveJ complete, observing new position... ({2.0 - time_since_delay:.1f}s left)"
                             else:
