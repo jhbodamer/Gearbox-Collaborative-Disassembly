@@ -371,7 +371,7 @@ def main():
             for i, c in enumerate(contours):
                 # Calculate the area of each contour
                 area = cv2.contourArea(c)
-                print(f"Area: {area}")
+                #print(f"Area: {area}")
                 # # Ignore contours that are too small or too large
                 if area < 5000 or 100000 < area:
                     continue
@@ -453,7 +453,7 @@ def main():
                     time_elapsed = current_time - main.sequence_start_time
                     
                     # Only proceed if we haven't completed the sequence yet
-                    if not hasattr(main, 'step3_complete') or main.step3_complete is None:
+                    if not hasattr(main, 'step7_complete') or main.step7_complete is None:
                         if time_elapsed >= 2.0:
                             # STEP 1: Execute moveL to target position with iterative refinement
                             if not hasattr(main, 'step1_complete'):
@@ -496,7 +496,7 @@ def main():
                                         total_distance = ((distance_X**2 + distance_Y**2)**0.5) * 1000  # Convert to mm
                                         
                                         # Check if we're close enough (within 5mm)
-                                        if total_distance <= 5.0:
+                                        if total_distance <= 1.0:
                                             print(f"Position accuracy achieved! Total distance: {total_distance:.1f}mm ≤ 5mm")
                                             print(f"Step 1 completed after {main.step1_iteration} iterations")
                                             main.step1_complete = True
@@ -505,7 +505,7 @@ def main():
                                             # Handle movement state machine
                                             if not main.step1_moving:
                                                 # Start new movement
-                                                target_pose_step1 = [main.target_Xb, main.target_Yb, 0.300, 3.1415, 0.0, 0.0]
+                                                target_pose_step1 = [main.target_Xb, main.target_Yb, 0.330, 3.1415, 0.0, 0.0]
                                                 print(f"\n--- Iteration {main.step1_iteration} ---")
                                                 print(f"Current TCP: X={current_X*1000:.1f}mm, Y={current_Y*1000:.1f}mm")
                                                 print(f"Target: X={main.target_Xb*1000:.1f}mm, Y={main.target_Yb*1000:.1f}mm")
@@ -543,10 +543,62 @@ def main():
                                 else:
                                     print(f"[ERROR] No objects detected for iteration {main.step1_iteration}")
                                     main.sequence_start_time = None
+                                    
+                        # STEP 1_2: Execute offset to center joint 5 above object
+                        if hasattr(main, 'step1_complete') and not hasattr(main, 'step1_2_complete'):
+                            print(f"\n=== STEP 1_2: CENTERING JOINT 5 ABOVE OBJECT ===")
+                            try:
+                                # Store angle to fall back on in case it cant be taken on next step
+                                contour, area, angle, center_point = detected_objects[0]
+                                main.object_angle = angle
+                                
+                                # Before doing offset get depth reading for later
+                                frames = pipeline.wait_for_frames()
+                                aligned_frames = align.process(frames)
+                                depth_frame = aligned_frames.get_depth_frame()
+                                
+                                # Convert depth frame to numpy array
+                                depth_image = np.asanyarray(depth_frame.get_data())
+                                
+                                # Get depth scale and center pixel
+                                depth_scale = depth_frame.get_units()  # meters per depth unit
+                                h, w = depth_image.shape
+                                center_x, center_y = w // 2, h // 2 
+                                 # Read depth value at the center
+                                main.depth_value = depth_image[center_y, center_x] * depth_scale
+                                print("Depth value in meters: ", main.depth_value)
+                                
+                                # Convert to pitch roll yaw
+                                axis_angle = np.array(current_pose[3:])
+                                # Convert axis-angle to rotation matrix
+                                r = R.from_rotvec(axis_angle)
+                                rotation_matrix = r.as_matrix()
+                                euler = r.as_euler('xyz', degrees=True)
+                                
+                                # Calculate offset for gripper based on tool's current orientation
+                                magnitude_of_offset = 0.05
+                                angle_of_offset = 3*pi/4
+                                offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
+                                offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
+                                current_pose = get_tcp_pose6(rtde)
+                                target_pose_step1_2 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.330, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                print(f"Target pose (With offset)(z=330mm): [{target_pose_step1_2[0]:.3f}, {target_pose_step1_2[1]:.3f}, {target_pose_step1_2[2]:.3f}, {target_pose_step1_2[3]:.3f}, {target_pose_step1_2[4]:.3f}, {target_pose_step1_2[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step1_2, 0.1, 0.1)
+                                print("[OK] Offset move command sent successfully")
+                                main.step1_2_complete = True
+                                main.step2_delay_start = time.time()
+                                
+                                
+                            except Exception as e:
+                                print(f"[ERROR] Offset Move Failed: {e}")
+                                main.sequence_start_time = None         
+                    
                         
 
                         # STEP 2: Wait 2 seconds after moveL completes, then execute moveJ
-                        if hasattr(main, 'step1_complete') and not hasattr(main, 'step2_complete'):
+                        if hasattr(main, 'step1_2_complete') and not hasattr(main, 'step2_complete'):
+                            print("debug")
                             if not hasattr(main, 'step2_delay_start'):
                                 main.step2_delay_start = time.time()
                             
@@ -587,12 +639,14 @@ def main():
                                     # Execute moveJ command
                                     rtde_control.moveJ(target_joints, 0.5, 0.5)
                                     print("[OK] MoveJ command sent successfully")
+                                    # iterate moveL again
                                     main.step2_complete = True
                                     print("[INFO] MoveJ complete. Waiting 2 seconds to observe new position...")
                                 except Exception as e:
                                     print(f"[ERROR] MoveJ failed: {e}")
                                     main.sequence_start_time = None
                         
+               
                         
                         # STEP 3: Execute moveL to lower height immediately after moveJ completes
                         if hasattr(main, 'step2_complete') and not hasattr(main, 'step3_complete'):
@@ -630,21 +684,7 @@ def main():
                             
                             
                             try:
-                                # Before doing offset get depth reading
-                                frames = pipeline.wait_for_frames()
-                                aligned_frames = align.process(frames)
-                                depth_frame = aligned_frames.get_depth_frame()
                                 
-                                # Convert depth frame to numpy array
-                                depth_image = np.asanyarray(depth_frame.get_data())
-                                
-                                # Get depth scale and center pixel
-                                depth_scale = depth_frame.get_units()  # meters per depth unit
-                                h, w = depth_image.shape
-                                center_x, center_y = w // 2, h // 2 
-                                 # Read depth value at the center
-                                main.depth_value = depth_image[center_y, center_x] * depth_scale
-                                print("Depth value in meters: ", main.depth_value)
                                 
                                 # Convert to pitch roll yaw
                                 axis_angle = np.array(current_pose[3:])
@@ -654,8 +694,10 @@ def main():
                                 euler = r.as_euler('xyz', degrees=True)
                                 
                                 # Calculate offset for gripper based on tool's current orientation
-                                offset_x = -0.065*cos(radians(euler[2])+pi/4)
-                                offset_y = -0.065*sin(radians(euler[2])+pi/4)
+                                magnitude_of_offset = -0.076
+                                angle_of_offset = pi/2
+                                offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
+                                offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
@@ -680,7 +722,7 @@ def main():
                                 
                                 # Move to depth offset (gripper pressed against box surface)
                                 current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.055
+                                z_move = -main.depth_value + 0.055 + 0.07 # account for difference between camera and suction height as well as difference in height since depth was measured
                                 target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                 print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
@@ -724,11 +766,11 @@ def main():
                                 
                                 # Move to put object down
                                 current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.065
-                                target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                z_move = -main.depth_value + 0.065 + 0.07 # drop 1 cm higher than where picked up
+                                target_pose_step8 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                print(f"Target pose (z=112mm): [{target_pose_step8[0]:.3f}, {target_pose_step8[1]:.3f}, {target_pose_step8[2]:.3f}, {target_pose_step8[3]:.3f}, {target_pose_step8[4]:.3f}, {target_pose_step8[5]:.3f}]")
+                                rtde_control.moveL(target_pose_step8, 0.1, 0.1)
                                 time.sleep(1)
                                 stop_suction()
                                 
@@ -738,10 +780,9 @@ def main():
                                 
                                 
                                 main.sequence_start_time = None
-                                target_pose
                                 # Reset sequence for next run
                                 main.sequence_start_time = None
-                                main.step1_completMoveJe = None
+                                main.step1_complete = None
                                 main.step2_complete = None
                                 main.step3_complete = None
                                 main.step4_complete = None
