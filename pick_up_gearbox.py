@@ -32,7 +32,7 @@ AUTO_FLIP_RAY = True   # allow one-time auto fix if ray points the wrong way
 FLIP_RAY = False       # will be set True automatically if needed
 
 # Old Observing pose (From original pixel_to_pose)
-#OBSERVE_POSE = [0.135, -0.474, 0.201, 
+#OBSERVE_POSE = [0.155, -0.474, 0.201, 
 #-1.841, 1.873, -0.675]
 
 # New Observing Pose (For better vantage point)
@@ -598,7 +598,6 @@ def main():
 
                         # STEP 3: Wait 2 seconds after moveL completes, then execute moveJ
                         if hasattr(main, 'step2_complete') and not hasattr(main, 'step3_complete'):
-                            print("debug")
                             if not hasattr(main, 'step3_delay_start'):
                                 main.step3_delay_start = time.time()
                             
