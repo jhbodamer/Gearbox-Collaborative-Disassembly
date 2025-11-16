@@ -544,6 +544,7 @@ def main():
                                     print(f"[ERROR] No objects detected for iteration {main.step1_iteration}")
                                     main.sequence_start_time = None
                         
+
                         # STEP 2: Wait 2 seconds after moveL completes, then execute moveJ
                         if hasattr(main, 'step1_complete') and not hasattr(main, 'step2_complete'):
                             if not hasattr(main, 'step2_delay_start'):
@@ -653,8 +654,8 @@ def main():
                                 euler = r.as_euler('xyz', degrees=True)
                                 
                                 # Calculate offset for gripper based on tool's current orientation
-                                offset_x = -0.055*cos(radians(euler[2])+pi/4)
-                                offset_y = -0.055*sin(radians(euler[2])+pi/4)
+                                offset_x = -0.065*cos(radians(euler[2])+pi/4)
+                                offset_y = -0.065*sin(radians(euler[2])+pi/4)
                                 current_pose = get_tcp_pose6(rtde)
                                 target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
@@ -679,7 +680,7 @@ def main():
                                 
                                 # Move to depth offset (gripper pressed against box surface)
                                 current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.08
+                                z_move = -main.depth_value + 0.055
                                 target_pose_step5 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                 print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                 print(f"Target pose (z=112mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
@@ -700,7 +701,7 @@ def main():
                             
                             try:
                                 # Activate Gripper
-                                #start_suction()
+                                start_suction()
                                 time.sleep(1)
                                 main.step6_complete = True
                                 
