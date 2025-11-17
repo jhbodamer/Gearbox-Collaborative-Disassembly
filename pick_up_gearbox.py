@@ -7,6 +7,7 @@ from pathlib import Path
 import pyrealsense2 as rs
 import GoSdk_MsgHandler
 import os
+import random
 import traceback
 import ctypes
 from ctypes import byref
@@ -36,7 +37,7 @@ FLIP_RAY = False       # will be set True automatically if needed
 #-1.841, 1.873, -0.675]
 
 # New Observing Pose (For better vantage point)
-OBSERVE_POSE = [0.3560230894137112, -0.509647957735381, 0.51933226290406, 3.14159, 0.0, 0.0]
+OBSERVE_POSE = [0.200230894137112, -0.509647957735381, 0.51933226290406, 3.14159, 0.0, 0.0]
 
 def dbg(*args):
     if VERBOSE:
@@ -276,6 +277,9 @@ def main():
     Main function that automatically detects objects and finds their orientation using minAreaRect.
     Based on the OpenCV example code provided by the user.
     """
+    
+    object_detected = False
+    
     global FLIP_RAY
     
     # Load camera calibration
@@ -389,6 +393,7 @@ def main():
             
             # Process detected objects to get their poses (similar to pixel_t_pose.py)
             if detected_objects:
+                object_detected = True
                 #print(f"\n=== PROCESSING {len(detected_objects)} DETECTED OBJECTS ===")
                 for i, (contour, area, angle, center_point) in enumerate(detected_objects):
                     # Get robot pose and compute intersection using center point
@@ -439,7 +444,7 @@ def main():
                 #print("================================\n")
 
             # Automated movement sequence logic
-            if detected_objects and rtde_control is not None:
+            if object_detected and rtde_control is not None:
                 # Start automated sequence after 2 seconds
                 current_time = time.time()
                 
@@ -453,7 +458,7 @@ def main():
                     time_elapsed = current_time - main.sequence_start_time
                     
                     # Only proceed if we haven't completed the sequence yet
-                    if not hasattr(main, 'step8_complete') or main.step8_complete is None:
+                    if not hasattr(main, 'step10_complete') or main.step9_complete is None:
                         if time_elapsed >= 2.0:
                             # STEP 1: Execute moveL to target position with iterative refinement
                             if not hasattr(main, 'step1_complete'):
@@ -546,53 +551,59 @@ def main():
                                     
                         # STEP 2: Execute offset to center joint 5 above object
                         if hasattr(main, 'step1_complete') and not hasattr(main, 'step2_complete'):
-                            print(f"\n=== STEP 2: CENTERING JOINT 5 ABOVE OBJECT ===")
-                            try:
-                                # Store angle to fall back on in case it cant be taken on next step
-                                contour, area, angle, center_point = detected_objects[0]
-                                main.object_angle = angle
-                                
-                                # Before doing offset get depth reading for later
-                                frames = pipeline.wait_for_frames()
-                                aligned_frames = align.process(frames)
-                                depth_frame = aligned_frames.get_depth_frame()
-                                
-                                # Convert depth frame to numpy array
-                                depth_image = np.asanyarray(depth_frame.get_data())
-                                
-                                # Get depth scale and center pixel
-                                depth_scale = depth_frame.get_units()  # meters per depth unit
-                                h, w = depth_image.shape
-                                center_x, center_y = w // 2, h // 2 
-                                 # Read depth value at the center
-                                main.depth_value = depth_image[center_y, center_x] * depth_scale
-                                print("Depth value in meters: ", main.depth_value)
-                                
-                                # Convert to pitch roll yaw
-                                axis_angle = np.array(current_pose[3:])
-                                # Convert axis-angle to rotation matrix
-                                r = R.from_rotvec(axis_angle)
-                                rotation_matrix = r.as_matrix()
-                                euler = r.as_euler('xyz', degrees=True)
-                                
-                                # Calculate offset for gripper based on tool's current orientation
-                                magnitude_of_offset = 0.05
-                                angle_of_offset = 3*pi/4
-                                offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
-                                offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
-                                current_pose = get_tcp_pose6(rtde)
-                                target_pose_step2 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.330, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (With offset)(z=330mm): [{target_pose_step2[0]:.3f}, {target_pose_step2[1]:.3f}, {target_pose_step2[2]:.3f}, {target_pose_step2[3]:.3f}, {target_pose_step2[4]:.3f}, {target_pose_step2[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step2, 0.1, 0.1)
-                                print("[OK] Offset move command sent successfully")
-                                main.step2_complete = True
-                                main.step3_delay_start = time.time()
-                                
-                                
-                            except Exception as e:
-                                print(f"[ERROR] Offset Move Failed: {e}")
-                                main.sequence_start_time = None         
+                            if not hasattr(main, 'step2_delay_start'):
+                                main.step2_delay_start = time.time()
+                            
+                            time_since_delay = time.time() - main.step2_delay_start
+                            
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 2: CENTERING JOINT 5 ABOVE OBJECT ===")
+                                try:
+                                    # Store angle to fall back on in case it cant be taken on next step
+                                    contour, area, angle, center_point = detected_objects[0]
+                                    main.object_angle = angle
+                                    
+                                    # Before doing offset get depth reading for later
+                                    frames = pipeline.wait_for_frames()
+                                    aligned_frames = align.process(frames)
+                                    depth_frame = aligned_frames.get_depth_frame()
+                                    
+                                    # Convert depth frame to numpy array
+                                    depth_image = np.asanyarray(depth_frame.get_data())
+                                    
+                                    # Get depth scale and center pixel
+                                    depth_scale = depth_frame.get_units()  # meters per depth unit
+                                    h, w = depth_image.shape
+                                    center_x, center_y = w // 2, h // 2 
+                                     # Read depth value at the center
+                                    main.depth_value = depth_image[center_y, center_x] * depth_scale
+                                    print("Depth value in meters: ", main.depth_value)
+                                    
+                                    # Convert to pitch roll yaw
+                                    axis_angle = np.array(current_pose[3:])
+                                    # Convert axis-angle to rotation matrix
+                                    r = R.from_rotvec(axis_angle)
+                                    rotation_matrix = r.as_matrix()
+                                    euler = r.as_euler('xyz', degrees=True)
+                                    
+                                    # Calculate offset for gripper based on tool's current orientation
+                                    magnitude_of_offset = 0.05
+                                    angle_of_offset = 3*pi/4
+                                    offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
+                                    offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
+                                    current_pose = get_tcp_pose6(rtde)
+                                    target_pose_step2 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.330, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose (With offset)(z=330mm): [{target_pose_step2[0]:.3f}, {target_pose_step2[1]:.3f}, {target_pose_step2[2]:.3f}, {target_pose_step2[3]:.3f}, {target_pose_step2[4]:.3f}, {target_pose_step2[5]:.3f}]")
+                                    rtde_control.moveL(target_pose_step2, 0.1, 0.1)
+                                    print("[OK] Offset move command sent successfully")
+                                    main.step2_complete = True
+                                    main.step3_delay_start = time.time()
+                                    
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Offset Move Failed: {e}")
+                                    main.sequence_start_time = None         
                     
                         
 
@@ -603,7 +614,7 @@ def main():
                             
                             time_since_delay = time.time() - main.step3_delay_start
                             
-                            if time_since_delay >= 2.0:
+                            if time_since_delay >= 0.5:
                                 print(f"\n=== STEP 3: EXECUTING MOVEJ ===")
                                 
                                 # Use the current frame data for accurate angle calculation
@@ -636,7 +647,7 @@ def main():
                                     print(f"Joint 5 set to -90°, Joint 6 adjusted by {np.degrees(fresh_angle):.1f}°")
                                     
                                     # Execute moveJ command
-                                    rtde_control.moveJ(target_joints, 0.5, 0.5)
+                                    rtde_control.moveJ(target_joints, 0.1, 0.1)
                                     print("[OK] MoveJ command sent successfully")
                                     # iterate moveL again
                                     main.step3_complete = True
@@ -649,185 +660,233 @@ def main():
                         
                         # STEP 4: Execute moveL to lower height immediately after moveJ completes
                         if hasattr(main, 'step3_complete') and not hasattr(main, 'step4_complete'):
-                            print(f"\n=== STEP 4: EXECUTING FINAL MOVEL (LOWER HEIGHT) ===")
+                            if not hasattr(main, 'step4_delay_start'):
+                                main.step4_delay_start = time.time()
                             
-                            try:
-                                # Get current TCP position and only change Z height to 260mm
-                                offset_x = 0.0
-                                offset_y = 0.0
-                                current_pose = get_tcp_pose6(rtde)
-                                target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 260mm
-                                
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (Z=260mm): [{target_pose_step4[0]:.3f}, {target_pose_step4[1]:.3f}, {target_pose_step4[2]:.3f}, {target_pose_step4[3]:.3f}, {target_pose_step4[4]:.3f}, {target_pose_step4[5]:.3f}]")
-                                
-                                # Execute moveL command to lower height
-                                rtde_control.moveL(target_pose_step4, 0.1, 0.1)
-                                print("[OK] Final MoveL command sent successfully")
-                                time.sleep(1)
-                                current_pose_post_scan = get_tcp_pose6(rtde)
-                                # target_pose_step5 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
-                                # rtde_control.moveL(target_pose_step5, 0.1, 0.1)
-                                main.step4_complete = True
+                            time_since_delay = time.time() - main.step4_delay_start
                             
-                               
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 4: EXECUTING FINAL MOVEL (LOWER HEIGHT) ===")
                                 
-                            except Exception as e:
-                                print(f"[ERROR] Final MoveL failed: {e}")
-                                main.sequence_start_time = None
-                               
+                                try:
+                                    # Get current TCP position and only change Z height to 260mm
+                                    offset_x = 0.0
+                                    offset_y = 0.0
+                                    current_pose = get_tcp_pose6(rtde)
+                                    target_pose_step4 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 260mm
+                                    
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose (Z=260mm): [{target_pose_step4[0]:.3f}, {target_pose_step4[1]:.3f}, {target_pose_step4[2]:.3f}, {target_pose_step4[3]:.3f}, {target_pose_step4[4]:.3f}, {target_pose_step4[5]:.3f}]")
+                                    
+                                    # Execute moveL command to lower height
+                                    rtde_control.moveL(target_pose_step4, 0.1, 0.1)
+                                    print("[OK] Final MoveL command sent successfully")
+                                    time.sleep(1)
+                                    current_pose_post_scan = get_tcp_pose6(rtde)
+                                    # target_pose_step5 = [current_pose_post_scan[0], current_pose_post_scan[1], 0.300, current_pose_post_scan[3], current_pose_post_scan[4], current_pose_post_scan[5]]  # Only Z changes to 260mm
+                                    # rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                    main.step4_complete = True
+                                
+                                   
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Final MoveL failed: {e}")
+                                    main.sequence_start_time = None
+                                   
                                 
                         # STEP 5:  Execute offset to account for gripper
                         if hasattr(main, 'step4_complete') and not hasattr(main, 'step5_complete'):
-                            print(f"\n=== STEP 5: EXECUTING OFFSET FOR GRIPPER ===")
+                            if not hasattr(main, 'step5_delay_start'):
+                                main.step5_delay_start = time.time()
                             
+                            time_since_delay = time.time() - main.step5_delay_start
                             
-                            try:
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 5: EXECUTING OFFSET FOR GRIPPER ===")
                                 
                                 
-                                # Convert to pitch roll yaw
-                                axis_angle = np.array(current_pose[3:])
-                                # Convert axis-angle to rotation matrix
-                                r = R.from_rotvec(axis_angle)
-                                rotation_matrix = r.as_matrix()
-                                euler = r.as_euler('xyz', degrees=True)
-                                
-                                # Calculate offset for gripper based on tool's current orientation
-                                magnitude_of_offset = -0.076
-                                angle_of_offset = pi/2
-                                offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
-                                offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
-                                current_pose = get_tcp_pose6(rtde)
-                                target_pose_step5 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (With offset)(z=260mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step5, 0.1, 0.1)
-                                print("[OK] Offset move command sent successfully")
-                                time.sleep(1)
-                                
-                                main.step5_complete = True
-                            except Exception as e:
-                                print(f"[ERROR] Offset Move Failed: {e}")
-                                main.sequence_start_time = None     
-                                
+                                try:
+                                    
+                                    
+                                    # Convert to pitch roll yaw
+                                    axis_angle = np.array(current_pose[3:])
+                                    # Convert axis-angle to rotation matrix
+                                    r = R.from_rotvec(axis_angle)
+                                    rotation_matrix = r.as_matrix()
+                                    euler = r.as_euler('xyz', degrees=True)
+                                    
+                                    # Calculate offset for gripper based on tool's current orientation
+                                    magnitude_of_offset = -0.076
+                                    angle_of_offset = pi/2
+                                    offset_x = magnitude_of_offset*cos(radians(euler[2])+angle_of_offset)
+                                    offset_y = magnitude_of_offset*sin(radians(euler[2])+angle_of_offset)
+                                    current_pose = get_tcp_pose6(rtde)
+                                    target_pose_step5 = [current_pose[0]+offset_x, current_pose[1]+offset_y, 0.260, current_pose[3], current_pose[4], current_pose[5]]  # Offset added
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose (With offset)(z=260mm): [{target_pose_step5[0]:.3f}, {target_pose_step5[1]:.3f}, {target_pose_step5[2]:.3f}, {target_pose_step5[3]:.3f}, {target_pose_step5[4]:.3f}, {target_pose_step5[5]:.3f}]")
+                                    rtde_control.moveL(target_pose_step5, 0.1, 0.1)
+                                    print("[OK] Offset move command sent successfully")
+                                    time.sleep(1)
+                                    
+                                    main.step5_complete = True
+                                except Exception as e:
+                                    print(f"[ERROR] Offset Move Failed: {e}")
+                                    main.sequence_start_time = None     
+                                    
                                 
                                 
                         # STEP 6:  Move down into pick pose
                         if hasattr(main, 'step5_complete') and not hasattr(main, 'step6_complete'):
-                            print(f"\n=== STEP 6: MOVING TO PICK POSE ===")
+                            if not hasattr(main, 'step6_delay_start'):
+                                main.step6_delay_start = time.time()
                             
+                            time_since_delay = time.time() - main.step6_delay_start
                             
-                            try:
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 6: MOVING TO PICK POSE ===")
                                 
-                                # Move to depth offset (gripper pressed against box surface)
-                                current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.055 + 0.07 # account for difference between camera and suction height as well as difference in height since depth was measured
-                                target_pose_step6 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (z=112mm): [{target_pose_step6[0]:.3f}, {target_pose_step6[1]:.3f}, {target_pose_step6[2]:.3f}, {target_pose_step6[3]:.3f}, {target_pose_step6[4]:.3f}, {target_pose_step6[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step6, 0.1, 0.1)
-                                print("[OK] Pick move command sent successfully")
-                                time.sleep(1)
                                 
-                                main.step6_complete = True
-                                
-                            except Exception as e:
-                                print(f"[ERROR] Offset Move Failed: {e}")
-                                main.sequence_start_time = None    
-                                
+                                try:
+                                    
+                                    # Move to depth offset (gripper pressed against box surface)
+                                    current_pose = get_tcp_pose6(rtde)
+                                    z_move = -main.depth_value + 0.055 + 0.07 # account for difference between camera and suction height as well as difference in height since depth was measured
+                                    target_pose_step6 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose (z=112mm): [{target_pose_step6[0]:.3f}, {target_pose_step6[1]:.3f}, {target_pose_step6[2]:.3f}, {target_pose_step6[3]:.3f}, {target_pose_step6[4]:.3f}, {target_pose_step6[5]:.3f}]")
+                                    rtde_control.moveL(target_pose_step6, 0.1, 0.1)
+                                    print("[OK] Pick move command sent successfully")
+                                    time.sleep(1)
+                                    
+                                    main.step6_complete = True
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Offset Move Failed: {e}")
+                                    main.sequence_start_time = None    
+                                    
                                 
                         # STEP 7:  Activate Suction
                         if hasattr(main, 'step6_complete') and not hasattr(main, 'step7_complete'):
-                            print(f"\n=== STEP 7: ACTIVATING GRIPPER ===")   
+                            if not hasattr(main, 'step7_delay_start'):
+                                main.step7_delay_start = time.time()
                             
-                            try:
-                                # Activate Gripper
-                                start_suction()
-                                time.sleep(1)
-                                main.step7_complete = True
+                            time_since_delay = time.time() - main.step7_delay_start
+                            
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 7: ACTIVATING GRIPPER ===")   
                                 
-                            except Exception as e:
-                                print(f"[ERROR] Suction Start Failed: {e}")
-                                main.sequence_start_time = None
+                                try:
+                                    # Activate Gripper
+                                    start_suction()
+                                    time.sleep(1)
+                                    main.step7_complete = True
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Suction Start Failed: {e}")
+                                    main.sequence_start_time = None
                                 
                         # STEP 8:  Move to human disassembly pose
                         if hasattr(main, 'step7_complete') and not hasattr(main, 'step8_complete'):
-                            print(f"\n=== STEP 8: MOVING TO HUMAN DISASSEMBLY POSE ===")   
+                            if not hasattr(main, 'step8_delay_start'):
+                                main.step8_delay_start = time.time()
                             
-                            try:
-                                # Move to up to Z=260mm
-                                current_pose = get_tcp_pose6(rtde)
-                                target_pose_step8 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose: [{target_pose_step8[0]:.3f}, {target_pose_step8[1]:.3f}, {target_pose_step8[2]:.3f}, {target_pose_step8[3]:.3f}, {target_pose_step8[4]:.3f}, {target_pose_step8[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step8, 0.1, 0.1)
-                                time.sleep(2)
-                                main.step8_complete = True
+                            time_since_delay = time.time() - main.step8_delay_start
+                            
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 8: MOVING TO HUMAN DISASSEMBLY POSE ===")   
                                 
-                            except Exception as e:
-                                print(f"[ERROR] Human Pose Move Failed: {e}")
-                                main.sequence_start_time = None
+                                try:
+                                    # Move to up to Z=260mm
+                                    current_pose = get_tcp_pose6(rtde)
+                                    target_pose_step8 = [current_pose[0], current_pose[1], 0.260, current_pose[3], current_pose[4], current_pose[5]]  # move directly up
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose: [{target_pose_step8[0]:.3f}, {target_pose_step8[1]:.3f}, {target_pose_step8[2]:.3f}, {target_pose_step8[3]:.3f}, {target_pose_step8[4]:.3f}, {target_pose_step8[5]:.3f}]")
+                                    rtde_control.moveL(target_pose_step8, 0.1, 0.1)
+                                    time.sleep(2)
+                                    main.step8_complete = True
+                                    
+                                except Exception as e:
+                                    print(f"[ERROR] Human Pose Move Failed: {e}")
+                                    main.sequence_start_time = None
                                 
                                 
                                 
                                 
                         # STEP 9:  Put object down
                         if hasattr(main, 'step8_complete') and not hasattr(main, 'step9_complete'):
-                            print(f"\n=== STEP 9: PUTTING OBJECT DOWN ===")   
+                            if not hasattr(main, 'step9_delay_start'):
+                                main.step9_delay_start = time.time()
                             
-                            try:
-                                # Move to put object down
-                                current_pose = get_tcp_pose6(rtde)
-                                z_move = -main.depth_value + 0.065 + 0.07 # drop 1 cm higher than where picked up
-                                target_pose_step9 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
-                                print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
-                                print(f"Target pose (z=112mm): [{target_pose_step9[0]:.3f}, {target_pose_step9[1]:.3f}, {target_pose_step9[2]:.3f}, {target_pose_step9[3]:.3f}, {target_pose_step9[4]:.3f}, {target_pose_step9[5]:.3f}]")
-                                rtde_control.moveL(target_pose_step9, 0.1, 0.1)
-                                time.sleep(1)
-                                stop_suction()
-                                main.step9_complete = True
+                            time_since_delay = time.time() - main.step9_delay_start
+                            
+                            if time_since_delay >= 0.5:
+                                print(f"\n=== STEP 9: PUTTING OBJECT DOWN ===")   
                                 
-                
-                            except Exception as e:
-                                print(f"[ERROR] PLACE MANEUVER FAILED: {e}")
-                                main.sequence_start_time = None
-                        
+                                try:
+                                    current_pose = get_tcp_pose6(rtde)
+                                    z_move = -main.depth_value + 0.065 + 0.07 # drop 1 cm higher than where picked up
+                                    target_pose_step9 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]] 
+                                    print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
+                                    print(f"Target pose {target_pose_step9[2]:.3f}: [{target_pose_step9[0]:.3f}, {target_pose_step9[1]:.3f}, {target_pose_step9[2]:.3f}, {target_pose_step9[3]:.3f}, {target_pose_step9[4]:.3f}, {target_pose_step9[5]:.3f}]")
+                                    rtde_control.moveL(target_pose_step9, 0.1, 0.1)
+                                    time.sleep(1)
+                                    stop_suction()
+                                    main.step9_complete = True
+                                    
+                    
+                                except Exception as e:
+                                    print(f"[ERROR] PLACE MANEUVER FAILED: {e}")
+                                    main.sequence_start_time = None
+                            
                                 
                         # STEP 10:  Reset
                         if hasattr(main, 'step9_complete') and not hasattr(main, 'step10_complete'):
-                            print(f"\n=== STEP 10: RETURN TO OBSERVATION POSE ===")   
+                            if not hasattr(main, 'step10_delay_start'):
+                                main.step10_delay_start = time.time()
+                            
+                            time_since_delay = time.time() - main.step10_delay_start
+                            
+                            if time_since_delay >= 1.0:
+                                print(f"\n=== STEP 10: RETURN TO OBSERVATION POSE ===")   
 
 
-                            try:   
-                                # Move to observing position
-                                print("[INFO] Moving to OBSERVE_POSE before starting loop...")
-                                rtde_control.moveL(OBSERVE_POSE, 0.25, 0.25)
-                                       
-                                        
-                                main.sequence_start_time = None
-                                # Reset sequence for next run
-                                main.sequence_start_time = None
-                                main.step1_complete = None
-                                main.step2_complete = None
-                                main.step3_complete = None
-                                main.step4_complete = None
-                                main.step5_complete = None
-                                main.step6_complete = None
-                                main.step7_complete = None
-                                main.step8_complete = None
-                                main.step9_complete = None
-                                main.step10_complete = None
-                                main.step3_delay_start = None
-                                main.step1_iteration = None
-                                main.target_Xb = None
-                                main.target_Yb = None
-                                main.step1_moving = None
-                                main.step1_move_start_time = None
-                                main.depth_value = None
-                            except Exception as e:
-                                    print(f"[ERROR] RESET FAILED {e}")
+                                try:   
+                                    # Move to observing position
+                                    print("[INFO] Moving to OBSERVE_POSE before starting loop...")
+                                    rtde_control.moveL(OBSERVE_POSE, 0.1, 0.1)
+                                           
+                                            
+                                    # Reset sequence for next run
+                                    object_detected = False
                                     main.sequence_start_time = None
-                                
+                                    main.step1_complete = None
+                                    main.step2_complete = None
+                                    main.step3_complete = None
+                                    main.step4_complete = None
+                                    main.step5_complete= None
+                                    main.step6_complete = None
+                                    main.step7_complete = None
+                                    main.step8_complete = None
+                                    main.step9_complete = None
+                                    main.step2_delay_start = None
+                                    main.step3_delay_start = None
+                                    main.step4_delay_start = None
+                                    main.step5_delay_start = None
+                                    main.step6_delay_start = None
+                                    main.step7_delay_start = None
+                                    main.step8_delay_start = None
+                                    main.step9_delay_start = None
+                                    main.step10_delay_start = None
+                                    main.step1_iteration = None
+                                    main.target_Xb = None
+                                    main.target_Yb = None
+                                    main.step1_moving = None 
+                                    main.step1_move_start_time = None
+                                    main.depth_value = None
+                                except Exception as e:
+                                        print(f"[ERROR] RESET FAILED {e}")
+                                        main.sequence_start_time = None
+                                    
                 
                 # Display current sequence status
                 if hasattr(main, 'sequence_start_time') and main.sequence_start_time is not None:
@@ -844,74 +903,49 @@ def main():
                                 # Show positioning status
                                 status_text = f"AUTO: Iteration {main.step1_iteration} - Positioning..."
                         else:
-                            status_text = f"AUTO: Observing object... ({2.0 - time_elapsed:.1f}s left)"
+                            status_text = f"AUTO: Observing object... ({time_elapsed:.1f}s)"
+                    elif not hasattr(main, 'step2_complete'):
+                        if hasattr(main, 'step2_delay_start'):
+                            time_since_delay = current_time - main.step2_delay_start
+                            status_text = f"AUTO: Preparing for MoveJ with Offset ({time_since_delay:.1f}s)"
                     elif not hasattr(main, 'step3_complete'):
                         if hasattr(main, 'step3_delay_start'):
                             time_since_delay = current_time - main.step3_delay_start
-                            if time_since_delay < 2.0:
-                                status_text = f"AUTO: MoveL complete, observing new position... ({2.0 - time_since_delay:.1f}s left)"
-                            else:
-                                status_text = "AUTO: MoveL complete, executing MoveJ..."
-                        else:
-                            status_text = "AUTO: MoveL complete, preparing for MoveJ..."
+                            status_text = f"Moving Joint 6 to align rotation ({time_since_delay:.1f}s)"
                     elif not hasattr(main, 'step4_complete'):
                         if hasattr(main, 'step4_delay_start'):
                             time_since_delay = current_time - main.step4_delay_start
-                            if time_since_delay < 2.0:
-                                status_text = f"AUTO: MoveJ complete, observing new position... ({2.0 - time_since_delay:.1f}s left)"
-                            else:
-                                status_text = "AUTO: MoveJ complete, executing final MoveL..."
-                        else:
-                            status_text = "AUTO: MoveJ complete, preparing for final MoveL..."
+                            status_text = f"Moving down to object ({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step5_complete'):
+                        if hasattr(main, 'step5_delay_start'):
+                            time_since_delay = current_time - main.step5_delay_start
+                            status_text = f"Executing offset for gripper ({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step6_complete'):
+                        if hasattr(main, 'step6_delay_start'):
+                            time_since_delay = current_time - main.step6_delay_start
+                            status_text = f"Moving down to object surface ({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step7_complete'):
+                        if hasattr(main, 'step7_delay_start'):
+                            time_since_delay = current_time - main.step2_delay_start
+                            status_text = f"Starting Suction ({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step8_complete'):
+                        if hasattr(main, 'step8_delay_start'):
+                            time_since_delay = current_time - main.step7_delay_start
+                            status_text = f"Picking up object({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step9_complete'):
+                        if hasattr(main, 'step9_delay_start'):
+                            time_since_delay = current_time - main.step8_delay_start
+                            status_text = f"Placing object back down ({time_since_delay:.1f}s)"
+                    elif not hasattr(main, 'step10_complete'):
+                        if hasattr(main, 'step10_delay_start'):
+                            time_since_delay = current_time - main.step9_delay_start
+                            status_text = f"Resetting ({time_since_delay:.1f}s)"        
                     else:
                         status_text = "AUTO: Sequence completed!"
                     
                     cv2.putText(ui, status_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                     
-                    # Add detailed iteration status if in step 1
-                    if hasattr(main, 'step1_iteration') and not hasattr(main, 'step1_complete'):
-                        if hasattr(main, 'target_Xb') and main.target_Xb is not None:
-                            # Get current position for distance calculation
-                            current_pose = get_tcp_pose6(rtde)
-                            current_X = current_pose[0]
-                            current_Y = current_pose[1]
-                            
-                            distance_X = abs(current_X - main.target_Xb)
-                            distance_Y = abs(current_Y - main.target_Yb)
-                            total_distance = ((distance_X**2 + distance_Y**2)**0.5) * 1000
-                            
-                            # Display target and current positions
-                            target_text = f"Target: ({main.target_Xb*1000:.1f}, {main.target_Yb*1000:.1f}) mm"
-                            current_text = f"Current: ({current_X*1000:.1f}, {current_Y*1000:.1f}) mm"
-                            distance_text = f"Distance: {total_distance:.1f} mm"
-                            
-                            cv2.putText(ui, target_text, (10, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            cv2.putText(ui, current_text, (10, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-                            cv2.putText(ui, distance_text, (10, 165), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-                            
-                            # Show progress bar
-                            progress_width = 200
-                            progress_height = 15
-                            progress_x = 10
-                            progress_y = 180
-                            
-                            # Calculate progress (0 to 1, where 1 = 5mm or less)
-                            max_distance = 50.0  # Assume max 50mm initial distance
-                            progress = max(0, min(1, (max_distance - total_distance) / (max_distance - 5.0)))
-                            
-                            # Draw background
-                            cv2.rectangle(ui, (progress_x, progress_y), (progress_x + progress_width, progress_y + progress_height), (100, 100, 100), -1)
-                            # Draw progress
-                            progress_fill_width = int(progress_width * progress)
-                            if progress_fill_width > 0:
-                                cv2.rectangle(ui, (progress_x, progress_y), (progress_x + progress_fill_width, progress_y + progress_height), (0, 255, 0), -1)
-                            
-                            # Draw border
-                            cv2.rectangle(ui, (progress_x, progress_y), (progress_x + progress_width, progress_y + progress_height), (255, 255, 255), 2)
-                            
-                            # Progress text
-                            progress_text = f"Progress: {progress*100:.0f}% ({total_distance:.1f}mm → 5mm)"
-                            cv2.putText(ui, progress_text, (10, progress_y + progress_height + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                    
             
             # Display status
             status_text = f"Detected Objects: {len(detected_objects)}   FLIP_RAY={FLIP_RAY}"
@@ -951,22 +985,7 @@ def main():
             elif k == ord('f'):
                 FLIP_RAY = not FLIP_RAY
                 print(f"[INFO] FLIP_RAY = {FLIP_RAY}")
-            elif k == ord('h'):
-                print("\n=== PCA ORIENTATION DETECTION HELP ===")
-                print("The system automatically detects objects and finds their orientation")
-                print("using Principal Component Analysis (PCA) on object contours.")
-                print("\n=== AUTOMATIC POSE DETECTION ===")
-                print("Center points from PCA analysis are automatically used as 'clicked points'")
-                print("to compute Base (X,Y) coordinates where the ray hits Z=0 plane.")
-                print("\n=== AUTOMATED MOVEMENT SEQUENCE ===")
-                print("The system will automatically execute a movement sequence:")
-                print("  1. Wait 2 seconds for observation")
-                print("  2. MoveL to target position (Z=280mm)")
-                print("  3. Wait 2 seconds")
-                print("  4. MoveJ for rotation alignment")
-                print("  5. Wait 2 seconds")
-                print("  6. MoveL to lower height (Z=260mm)")
-                print("================================\n")
+            
 
     
     finally:
