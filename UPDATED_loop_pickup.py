@@ -16,7 +16,8 @@ from Gocator import (
     GoSdk, kApi, RecieveData, get_measurement_decision,
     kObject_Destroy, kIpAddress, GoDataSet, GoDataMsg, kNULL
 )
-from epick_gripper2 import (start_suction, stop_suction)
+from AdaptiveGripperControl import RobotiqGripper
+# from epick_gripper2 import (start_suction, stop_suction)
 # from activate_gripper import pulse_gripper
 # ---------- USER CONFIG ----------
 UR_IP = "192.168.1.5"
@@ -188,7 +189,9 @@ def getOrientation(pts, img):
     drawAxis(img, cntr, p1, (255, 255, 0), 1)
     drawAxis(img, cntr, p2, (0, 0, 255), 5)
     
-    angle = atan2(eigenvectors[0,1], eigenvectors[0,0]) # orientation in radians
+    # Use minor axis (thin edge)
+    angle = atan2(eigenvectors[1,1], eigenvectors[1,0])
+    # orientation in radians
     ## [visualization]
     
     # Label with the rotation angle in radians (no background rectangle)
@@ -293,6 +296,15 @@ def main():
     # Connect to robot
     rtde = get_rtde_iface(UR_IP)
     rtde_control = get_rtde_control_iface(UR_IP)
+    
+    # Initialize adaptive gripper
+    gripper = RobotiqGripper()
+    try:
+        gripper.connect(hostname="192.168.1.5", port=63352)
+        gripper.activate()
+        print("[OK] Adaptive gripper connected and activated")
+    except Exception as e:
+        print(f"[WARN] Could not initialize gripper: {e}")
     
     # Move to observing position
     if rtde_control is not None:
@@ -575,10 +587,10 @@ def main():
                                     depth_scale = depth_frame.get_units()  # meters per depth unit
                                     h, w = depth_image.shape
                                     center_x, center_y = w // 2, h // 2 
-                                     # Read depth value at the center
+                                    # Read depth value at the center
                                     main.depth_value = depth_image[center_y, center_x] * depth_scale
                                     print("Depth value in meters: ", main.depth_value)
-                                    
+                                   
                                     # Convert to pitch roll yaw
                                     axis_angle = np.array(current_pose[3:])
                                     # Convert axis-angle to rotation matrix
@@ -734,7 +746,6 @@ def main():
                                     main.sequence_start_time = None     
                                     
                                 
-                                
                         # STEP 6:  Move down into pick pose
                         if hasattr(main, 'step5_complete') and not hasattr(main, 'step6_complete'):
                             if not hasattr(main, 'step6_delay_start'):
@@ -750,11 +761,11 @@ def main():
                                     
                                     # Move to depth offset (gripper pressed against box surface)
                                     current_pose = get_tcp_pose6(rtde)
-                                    z_move = -main.depth_value + 0.055 + 0.07 # account for difference between camera and suction height as well as difference in height since depth was measured
+                                    z_move = -main.depth_value - 0.055 - 0.07 # account for difference between camera and adaptive gripper height as well as difference in height since depth was measured
                                     target_pose_step6 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                     print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
                                     print(f"Target pose (z=112mm): [{target_pose_step6[0]:.3f}, {target_pose_step6[1]:.3f}, {target_pose_step6[2]:.3f}, {target_pose_step6[3]:.3f}, {target_pose_step6[4]:.3f}, {target_pose_step6[5]:.3f}]")
-                                    rtde_control.moveL(target_pose_step6, 0.6, 0.6)
+                                    rtde_control.moveL(target_pose_step6, 0.1, 0.1)
                                     print("[OK] Pick move command sent successfully")
                                     time.sleep(1)
                                     
@@ -777,7 +788,7 @@ def main():
                                 
                                 try:
                                     # Activate Gripper
-                                    start_suction()
+                                    gripper.close()
                                     time.sleep(1)
                                     main.step7_complete = True
                                     
@@ -859,7 +870,7 @@ def main():
                                     print(f"Target pose {target_pose_step9[2]:.3f}: [{target_pose_step9[0]:.3f}, {target_pose_step9[1]:.3f}, {target_pose_step9[2]:.3f}, {target_pose_step9[3]:.3f}, {target_pose_step9[4]:.3f}, {target_pose_step9[5]:.3f}]")
                                     rtde_control.moveL(target_pose_step9, 0.3, 0.3)
                                     time.sleep(1)
-                                    stop_suction()
+                                    gripper.open()
                                     main.step9_complete = True
                                     
                     
@@ -1016,10 +1027,9 @@ def main():
                 print(f"[INFO] FLIP_RAY = {FLIP_RAY}")
             
 
-    
     finally:
         pipeline.stop()
-        stop_suction()
+        gripper.open()
         cv2.destroyAllWindows()
         print("Stopped RealSense.")
 

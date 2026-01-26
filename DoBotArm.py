@@ -110,7 +110,7 @@ class DoBotArm:
         self.commandDelay(lastIndex)
 
     # Moves arm to X/Y/Z/R in linear mode
-    def moveArmXYZ(self, x: float, y: float, z: float):
+    def moveArmXYZ(self, x: float, y: float, z: float, r: float):
         """
         Linear move to the specified X, Y, Z and R (end-effector rotation).
         """
@@ -118,9 +118,43 @@ class DoBotArm:
         lastIndex = dType.SetPTPCmd(
             self.api,
             dType.PTPMode.PTPMOVLXYZMode,
-            x, y, z
+            x, y, z, r
         )[0]
         self.commandDelay(lastIndex)
+        
+    def moveArmJointAngles(self, j1: float, j2: float, j3: float, j4: float):
+        """
+        Move the robot by joint angles J1, J2, J3, J4.
+        """
+        # PTPMOVJANGLEMode: joint move using absolute joint angles
+        lastIndex = dType.SetPTPCmd(
+            self.api,
+            dType.PTPMode.PTPMOVJANGLEMode,
+            j1, j2, j3, j4
+        )[0]
+        self.commandDelay(lastIndex)
+        
+    def moveJoint4(self, j4: float):
+        """
+        Move only Joint 4 (wrist rotation) while keeping J1, J2, and J3 unchanged.
+        """
+
+        # Read current joint angles from the robot
+        pose = dType.GetPose(self.api)
+        current_j1 = pose[4]
+        current_j2 = pose[5]
+        current_j3 = pose[6]
+
+        # Use PTPMOVJANGLEMode to move joints by absolute angles
+        lastIndex = dType.SetPTPCmd(
+            self.api,
+            dType.PTPMode.PTPMOVJANGLEMode,
+            current_j1, current_j2, current_j3, j4
+        )[0]
+
+        self.commandDelay(lastIndex)
+
+
 
     #Returns to home location
     def moveHome(self):
@@ -232,3 +266,5 @@ class DoBotArm:
             dType.dSleep(500) 
 
     """ END OF EXPERIMENTAL FUNCTIONS """
+
+ 

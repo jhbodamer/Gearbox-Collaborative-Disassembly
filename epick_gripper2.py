@@ -23,10 +23,16 @@ def start_suction():
     #print("ePick Suction is now ON.")
 
 def stop_suction():
+    send_command("SET SPE 0\n")
     send_command("SET ATR 1\n")
     #print("ePick Suction is now OFF and the object is released.")
 
 if __name__ == "__main__":
+    print("starting suction")
     start_suction()
-    time.sleep(5)  
+    time.sleep(5) 
+    print("done starting suction")
+
     stop_suction()
+    time.sleep(5)
+    start_suction()
