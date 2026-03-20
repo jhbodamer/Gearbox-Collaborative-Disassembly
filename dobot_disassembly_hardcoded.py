@@ -6,60 +6,53 @@ import DobotDllType as dType
 from DoBotArm import DoBotArm
 
 CON_STR = {
-    dType.DobotConnect.DobotConnect_NoError:  "DobotConnect_NoError",
-    dType.DobotConnect.DobotConnect_NotFound: "DobotConnect_NotFound",
-    dType.DobotConnect.DobotConnect_Occupied: "DobotConnect_Occupied"
+	dType.DobotConnect.DobotConnect_NoError:  "DobotConnect_NoError",
+	dType.DobotConnect.DobotConnect_NotFound: "DobotConnect_NotFound",
+	dType.DobotConnect.DobotConnect_Occupied: "DobotConnect_Occupied"
 }
 
-#test file for hard coding dobot path
-#sample:
-'''
-test = DoBotArm(250,0,50)
-test.moveArmXYZ(250, 200, 150, 30)
-test.dobotConnect()
-test.gripperOpen()
-time.sleep(1)
-test.gripperClose()
-time.sleep(1)
-test.gripperOff()
-time.sleep(1)
-test.moveArmXYZ(195.14817810
-test.moveArmXYZ(30.66052818298058594, 190.302978515625, 127.11076354980469, 44.27981948852539)
-time.sleep(1)
-'''
-
-test = DoBotArm(250,0,50)
-test.dobotConnect()
-test.moveArmXYZ(199.98040771484375, 0, 16.383460998535156, 0)
-test.moveArmXYZ(199.98040771484375, -20, 16.383460998535156, 0)
-test.moveArmXYZ(199.98040771484375, 20, 16.383460998535156, 0)
-#test.dobotDisconnect()
-
-# STEP 1: PICK OUT RIGHTMOST GEAR
-#test = DoBotArm(250,0,50)
-test.moveArmXYZ(199.98040771484375, 0, 16.383460998535156, 15)
-test.moveArmXYZ(199.98040771484375, -13.750436782836914, 16.383460998535156, 15)
-test.gripperClose()
-test.moveArmXYZ(30.6605281829834, 210.17864990234375, 81.93257141113281, 81.70032501220703)
-test.gripperOpen()
-
-# STEP 2: PICK OUT GEAR CLOSEST TO THE DOBOT (WITH PEGS ON THE RIGHT)
-test.moveArmXYZ(193.15679931640625, 0, 10.37519645690918, 45)
-test.moveArmXYZ(193.15679931640625, 20.68450927734375, 10.37519645690918, 6.11231803894043)
-test.gripperClose()
-test.moveArmXYZ(30.6605281829834, 210.17864990234375, 81.93257141113281, 81.70032501220703)
-test.gripperOpen()
-
-#STEP 3: PICK OUT LAST GEAR (FARTHEST FROM THE DOBOT)
-
-test.gripperClose()
-test.moveArmXYZ(30.6605281829834, 210.17864990234375, 81.93257141113281, 81.70032501220703)
-test.gripperOpen()
-test.dobotDisconnect()
-
-#dropoff [30.6605281829834, 210.17864990234375, 81.93257141113281, 81.70032501220703]
-'''
+def dobot_disassembly_hardcoded(test: DoBotArm):
+	try:
+		# STEP 1: PICK OUT BIGGEST GEAR
+		test.moveArmXYZ(homeX, homeY, homeZ, 75) #home position for the bot to move to every time so that it can either soft reset current position or have somewhere to go to so that
+		# it wont collide with any of the gears or the box itself
+		test.moveArmXYZ(235.62034606933594, -10.231431007385254, 13.101369857788086, 75) #hovering on the first gear
+		test.gripperClose()
+		time.sleep(2)
+		test.moveArmXYZ(homeX, homeY, homeZ, 75) #moves up to home position so that it doesnt hit anything on accident
+		test.moveArmXYZ(146.344970703125, 110.74940490722656, 50.16551971435547, 37.1173210144043) #moves to a nearby location that is within the work envelope because the arm is
+		# unable to move outside of a certain range depending on its starting position for whatever reason
+		test.gripperOpen() #lets go of the object 
+		time.sleep(2)
+		test.gripperOff() #turns the claw off so that it isn't running in the meantime on its way to the next gear
+		# STEP 2: PICK OUT GEAR CLOSEST TO THE DOBOT (WITH PEGS ON THE RIGHT)
+		test.moveArmXYZ(homeX, homeY, homeZ, 75)
+		test.moveArmXYZ(199.7819061279297, 21.38075828552246, 13.565299034118652, 75)
+		test.gripperClose()
+		time.sleep(2)
+		test.moveArmXYZ(homeX, homeY, homeZ, 75)
+		test.moveArmXYZ(146.344970703125, 110.74940490722656, 50.16551971435547, 37.1173210144043)
+		test.gripperOpen()
+		time.sleep(2)
+		test.gripperOff()
+		# STEP 3: PICK OUT LAST GEAR (FARTHEST FROM THE DOBOT)
+		test.moveArmXYZ(homeX, homeY, homeZ, 75)
+		test.moveArmXYZ(241.5885772705078, 22.94457244873047, 9.806683540344238, 25)
+		test.gripperClose()
+		time.sleep(2)
+		test.moveArmXYZ(homeX, homeY, homeZ, 75)
+		test.moveArmXYZ(146.344970703125, 110.74940490722656, 50.16551971435547, 37.1173210144043)
+		test.gripperOpen()
+		time.sleep(2)
+		test.gripperOff()
+		
+	except KeyboardInterrupt:
+		print("\n[!] Stopping log...")
+	finally:
+		test.dobotDisconnect()
+		print("[✓] Disconnected from DOBOT.")
 
 if __name__ == '__main__':
-	dobot = DoBotArm(250, 0, 50)
-'''
+	homeX, homeY, homeZ = 240.1073455810547, 4.5382914543151855, 133.52200317382812
+	test = DoBotArm(homeX, homeY, homeZ)
+	dobot_disassembly_hardcoded(test)

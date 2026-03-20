@@ -323,7 +323,7 @@ def main():
     detector = WorkDetector(idle_threshold=2.0)
 
     # Open webcam
-    cap = cv2.VideoCapture(6)
+    cap = cv2.VideoCapture(2)
 
     if not cap.isOpened():
         print("Error: Could not open webcam")

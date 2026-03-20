@@ -1,0 +1,31 @@
+[2026-02-04 20:30:30.668] [5159] [HailoRT] [info] [device.cpp:49] [Device] OS Version: Linux 6.12.34+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.34-1+rpt1~bookworm (2025-06-26) aarch64
+[2026-02-04 20:30:30.670] [5159] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:30.671] [5159] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:30.872] [5159] [HailoRT] [info] [device.cpp:49] [Device] OS Version: Linux 6.12.34+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.34-1+rpt1~bookworm (2025-06-26) aarch64
+[2026-02-04 20:30:30.874] [5159] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:30.875] [5159] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:37.646] [5186] [HailoRT] [info] [device.cpp:49] [Device] OS Version: Linux 6.12.34+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.34-1+rpt1~bookworm (2025-06-26) aarch64
+[2026-02-04 20:30:37.648] [5186] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:37.649] [5186] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:37.680] [5186] [HailoRT] [info] [vdevice.cpp:523] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: true
+[2026-02-04 20:30:38.739] [5186] [HailoRT] [info] [device.cpp:49] [Device] OS Version: Linux 6.12.34+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.34-1+rpt1~bookworm (2025-06-26) aarch64
+[2026-02-04 20:30:38.741] [5186] [HailoRT] [info] [control.cpp:108] [control__parse_identify_results] firmware_version is: 4.20.0
+[2026-02-04 20:30:38.764] [5186] [HailoRT] [info] [hef.cpp:1929] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11s
+[2026-02-04 20:30:38.764] [5186] [HailoRT] [info] [hef.cpp:1929] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11s
+[2026-02-04 20:30:38.908] [5186] [HailoRT] [info] [infer_model.cpp:436] [configure] Configuring network group 'yolov11s' with params: batch size: 8, power mode: ULTRA_PERFORMANCE, latency: NONE
+[2026-02-04 20:30:38.909] [5186] [HailoRT] [info] [multi_io_elements.cpp:756] [create] Created (AsyncHwEl)
+[2026-02-04 20:30:38.910] [5186] [HailoRT] [info] [queue_elements.cpp:450] [create] Created (EntryPushQEl0yolov11s/input_layer1 | timeout: 10s)
+[2026-02-04 20:30:38.910] [5186] [HailoRT] [info] [filter_elements.cpp:101] [create] Created (PreInferEl4yolov11s/input_layer1 | Reorder - src_order: NHWC, src_shape: (640, 640, 3), dst_order: NHCW, dst_shape: (640, 640, 3))
+[2026-02-04 20:30:38.910] [5186] [HailoRT] [info] [queue_elements.cpp:450] [create] Created (PushQEl4yolov11s/input_layer1 | timeout: 10s)
+[2026-02-04 20:30:38.911] [5186] [HailoRT] [info] [multi_io_elements.cpp:135] [create] Created (NmsPPMuxEl0YOLOV8-Post-Process | Op YOLOV8, Name: YOLOV8-Post-Process, Score threshold: 0.300, IoU threshold: 0.60, Classes: 9, Cross classes: false, NMS results order: BY_CLASS, Max bboxes per class: 100, Image height: 640, Image width: 640)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [queue_elements.cpp:942] [create] Created (MultiPushQEl0YOLOV8-Post-Process | timeout: 10s)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [edge_elements.cpp:187] [create] Created (LastAsyncEl0NmsPPMuxEl0YOLOV8-Post-Process)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] EntryPushQEl0yolov11s/input_layer1 | inputs: user | outputs: PreInferEl4yolov11s/input_layer1(running in thread_id: 5241)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] PreInferEl4yolov11s/input_layer1 | inputs: EntryPushQEl0yolov11s/input_layer1[0] | outputs: PushQEl4yolov11s/input_layer1
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] PushQEl4yolov11s/input_layer1 | inputs: PreInferEl4yolov11s/input_layer1[0] | outputs: AsyncHwEl(running in thread_id: 5242)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] AsyncHwEl | inputs: PushQEl4yolov11s/input_layer1[0] | outputs: MultiPushQEl0YOLOV8-Post-Process MultiPushQEl0YOLOV8-Post-Process MultiPushQEl0YOLOV8-Post-Process MultiPushQEl0YOLOV8-Post-Process MultiPushQEl0YOLOV8-Post-Process MultiPushQEl0YOLOV8-Post-Process
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] MultiPushQEl0YOLOV8-Post-Process | inputs: AsyncHwEl[0] AsyncHwEl[1] AsyncHwEl[2] AsyncHwEl[3] AsyncHwEl[4] AsyncHwEl[5] | outputs: NmsPPMuxEl0YOLOV8-Post-Process(running in thread_id: 5243)
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] NmsPPMuxEl0YOLOV8-Post-Process | inputs: MultiPushQEl0YOLOV8-Post-Process[0] | outputs: LastAsyncEl0NmsPPMuxEl0YOLOV8-Post-Process
+[2026-02-04 20:30:38.912] [5186] [HailoRT] [info] [pipeline.cpp:891] [print_deep_description] LastAsyncEl0NmsPPMuxEl0YOLOV8-Post-Process | inputs: NmsPPMuxEl0YOLOV8-Post-Process[0] | outputs: user
+[2026-02-04 20:30:38.913] [5186] [HailoRT] [info] [hef.cpp:1929] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11s
+[2026-02-04 20:30:38.913] [5186] [HailoRT] [info] [hef.cpp:1929] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolov11s

@@ -374,10 +374,10 @@ def main():
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
             # Convert image to binary using Otsu's method (Sensitive to shadows)
-            #_, bw = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+            _, bw = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
             
             # Convert image to binary but set our own threshold of 70 (Less sensitive to shadows)
-            _, bw = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+            #_, bw = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
             
             # Find all the contours in the thresholded image
             contours, _ = cv2.findContours(bw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
@@ -763,7 +763,7 @@ def main():
                                     # Move to depth offset (gripper pressed against box surface)
                                     current_pose = get_tcp_pose6(rtde)
                                     z_move = -(main.depth_value + 0.193) # account for difference between camera and adaptive gripper height as well as difference in height since depth was measured
-                                    if((z_move + current_pose[2]) < 0.13):
+                                    if((z_move + current_pose[2]) < 0.1344790594635865):
                                         z_move = 0.13 - current_pose[2]
                                     target_pose_step6 = [current_pose[0], current_pose[1], current_pose[2]+z_move, current_pose[3], current_pose[4], current_pose[5]]  # Only Z changes to 112mm
                                     print(f"Current TCP: [{current_pose[0]:.3f}, {current_pose[1]:.3f}, {current_pose[2]:.3f}, {current_pose[3]:.3f}, {current_pose[4]:.3f}, {current_pose[5]:.3f}]")
